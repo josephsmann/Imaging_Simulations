@@ -8,8 +8,9 @@ More specifically, a visually simple voxel weighting is created (variable $w$ in
 In order for our simulation to be more realistic, we would replace the recognizable voxel weighting with a weighting that is a a "realistic" function of a certain kind of stimulus (eg. occipital lobes to images) as well genetic influences eg. SNP's.
 
 To do:
-- map specific brain regions to voxels 
+- map specific brain regions to collections of voxels 
 - map stimuli to brain regions
 - map stimuli x SNP to brain regions
+  - presumably certain genes will affect cognition.
 
 
