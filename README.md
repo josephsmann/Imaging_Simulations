@@ -13,4 +13,9 @@ To do:
 - map stimuli x SNP to brain regions
   - presumably certain genes will affect cognition.
 
+Update: January 17, 2018
 
+Big digression into nistats in order to use nistats model building code.
+Currently have file `example_new_image_from_nibs.py', acquires data in nibs format,
+generate contrast maps for every variable in the design matrix, and then 
+creates a new image using theses contrast maps and the design matrix.
