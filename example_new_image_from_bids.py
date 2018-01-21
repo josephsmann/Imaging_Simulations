@@ -76,6 +76,12 @@ urls = select_from_index(
 
 data_dir, _ = fetch_openneuro_dataset(urls=urls)
 
+# my attempt at using different data
+# IMPORTANT: Bids compliant data needs a 'derivatives' directory that has pre-processed images in it
+# try
+data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dataset/'
+# data_dir = 'Users/josephmann/datalad/openfmri/ds000007'
+
 ##############################################################################
 # Obtain automatically FirstLevelModel objects and fit arguments
 # ---------------------------------------------------------------
@@ -88,14 +94,27 @@ data_dir, _ = fetch_openneuro_dataset(urls=urls)
 # the task_label and the space_label as specified in the file names.
 # We also have to provide the folder with the desired derivatives, that in this
 # case were produced by the fmriprep BIDS app.
+
+# TODO space label is necessary because...
+
 from nistats.first_level_model import first_level_models_from_bids
-task_label = 'stopsignal'
-space_label = 'MNI152NLin2009cAsym'
-derivatives_folder = 'derivatives/fmriprep'
+# task_label = 'stopsignal'
+# task_label = 'stopmanual'
+task_label = 'languagelocalizer'
+# space_label = 'MNI152NLin2009cAsym'
+space_label = 'MNI152nonlin2009aAsym'
+derivatives_folder = 'derivatives'
 models, models_run_imgs, models_events, models_confounds = \
     first_level_models_from_bids(
-        data_dir, task_label, space_label, #smoothing_fwhm=5.0,
-        derivatives_folder=derivatives_folder, noise_model='ols', signal_scaling=False)
+        data_dir, task_label, space_label, #smoothing_fwhm=5.0,   ### TODO if I can get my own datadir then I
+        derivatives_folder=derivatives_folder,
+        noise_model='ols', signal_scaling=False)
+
+# TODO load multiple runs
+
+# use datalad to fetch data
+# use bids to get info
+# seems simple...
 
 #############################################################################
 # Take model and model arguments of the subject and process events
@@ -106,40 +125,50 @@ model, imgs, events, confounds = (
 # End of data acquisition, and  plot_bids_features.py code
 #############################################################################
 
+def beta_img_from_model_events_confounds(model, imgs, events, confounds):
+    # model.fit will create a design matrix from events and confounds
+    # and then fit the GLM to the imgs,
+    model.fit(imgs, events, confounds)
 
-# model.fit will create a design matrix from events and confounds
-# and then fit the GLM to the imgs,
-model.fit(imgs, events, confounds)
+    # note: design_matrices_ will not exist until fit has been run
+    design_matrix_a = model.design_matrices_[0]
 
-# note: design_matrices_ will not exist until fit has been run
-design_matrix_a = model.design_matrices_[0]
+    # we use a contrast matrix to obtain the effect sizes from model
+    # this contrast matrix is the identity matrix and does NOT contrast effect sizes (despite its name)
+    contrast_matrix_a = np.eye(design_matrix_a.shape[1])
+    contrasts = dict([(column, contrast_matrix_a[i])
+                      for i, column in enumerate(design_matrix_a.columns)])
 
-# we use a contrast matrix to obtain the effect sizes from model
-# this contrast matrix is the identity matrix and does NOT contrast effect sizes (despite its name)
-contrast_matrix_a = np.eye(design_matrix_a.shape[1])
-contrasts = dict([(column, contrast_matrix_a[i])
-                  for i, column in enumerate(design_matrix_a.columns)])
+    # theta_imgs_l is a list of Ni1Images that contain the effect sizes for each column in the design_matrix
+    theta_imgs_l = list()
 
-# theta_imgs_l is a list of Ni1Images that contain the effect sizes for each column in the design_matrix
-theta_imgs_l = list()
+    # con_params is a list indicating which contrasts we will be taking from the model
+    # initially we take all of them
+    con_params_l = range(design_matrix_a.shape[1])
 
-# con_params is a list indicating which contrasts we will be taking from the model
-# initially we take all of them
-con_params_l = range(design_matrix_a.shape[1])
+    for i in con_params_l:
+        theta_imgs_l.append(
+            model.compute_contrast( contrast_matrix_a[i], output_type = 'effect_size')
+        )
 
-for i in con_params_l:
-    theta_imgs_l.append(
-        model.compute_contrast( contrast_matrix_a[i], output_type = 'effect_size')
-    )
+    # con_img is a Ni1image that contains all of the theta values in one image.
+    con_img = nilearn.image.concat_imgs(theta_imgs_l)
+    return con_img
 
-# con_img is a Ni1image that contains all of the theta values in one image.
-con_img = nilearn.image.concat_imgs(theta_imgs_l)
-
-
-# masked_con_img is a 2-dim matrix ( paramter x voxels)
+# masked_con_img is a 2-dim matrix ( parameter x voxels)
 masked_con_img = model.masker_.transform(con_img)
 pred_a = np.einsum('tp,pv->tv',
                    model.design_matrices_[0].values[:, con_params_l],
                    masked_con_img)
 
+# problem: I need the original masker to get the image, or do I?
 new_img = model.masker_.inverse_transform(pred_a)
+
+from nistats import reporting
+img_j = nilearn.image.load_img(imgs)
+reporting.compare_niimgs([new_img], [img_j], model.masker_, plot_hist=False,
+                         ref_label='model image', src_label='original image')
+
+### How about if I want to compare just the fixed-effect contrasts
+
+# TODO make function that takes 4-d scan (1 run) and design matrix or effects/confounds, contrast and returns 4-d with betas
