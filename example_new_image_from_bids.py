@@ -136,18 +136,14 @@ def beta_img_from_model_events_confounds(model, imgs, events, confounds):
 
     # we use a contrast matrix to obtain the effect sizes from model
     # this contrast matrix is the identity matrix and does NOT contrast effect sizes (despite its name)
-    contrast_matrix_a = np.eye(design_matrix_a.shape[1])
-    contrasts = dict([(column, contrast_matrix_a[i])
-                      for i, column in enumerate(design_matrix_a.columns)])
+
+    n_features = design_matrix_a.shape[1]
+
+    contrast_matrix_a = np.eye(n_features)
 
     # theta_imgs_l is a list of Ni1Images that contain the effect sizes for each column in the design_matrix
-    theta_imgs_l = list()
-
-
-    for i in range(design_matrix_a.shape[1]):
-        theta_imgs_l.append(
-            model.compute_contrast( contrast_matrix_a[i], output_type = 'effect_size')
-        )
+    theta_imgs_l = [  model.compute_contrast( contrast_matrix_a[i], output_type = 'effect_size')
+                      for i in range(n_features)]
 
     # con_img is a Ni1image that contains all of the theta values in one image.
     con_img = nilearn.image.concat_imgs(theta_imgs_l)
