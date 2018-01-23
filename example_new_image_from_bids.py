@@ -198,19 +198,22 @@ def get_data():
             noise_model='ols', signal_scaling=False)
     return list(zip(models, models_run_imgs, models_events, models_confounds))[:n_runs]
 
-# @pytest.fixture(params= get_data())
-# def  beta_img0(tuple_arg):
-#     model, imgs, events, confounds = tuple_arg
-#     return beta_img_from_model_events_confounds(model, imgs,events, confounds)
+# i don't want to have to regenerate these images for every test so trying this
+@pytest.fixture(params= get_data())
+def  beta_img_design_matrix(request):
+    model, imgs, events, confounds = request.param
+    return beta_img_from_model_events_confounds(model, imgs, events, confounds) + (imgs[0],)
 
-@pytest.mark.parametrize("arg_tuple", get_data())
+# @pytest.mark.parametrize("arg_tuple", get_data())
 @pytest.mark.parametrize("contrasts_l", get_contrasts())
-def test_contrasts(arg_tuple, contrasts_l):
-    model, imgs,events, confounds = arg_tuple
-    beta_img0, design_matrix = beta_img_from_model_events_confounds(model, imgs, events, confounds)
+def test_contrasts(beta_img_design_matrix, contrasts_l):
+    # model, imgs,events, confounds = arg_tuple
+    # beta_img0, design_matrix = beta_img_from_model_events_confounds(model, imgs, events, confounds)
+    beta_img0, design_matrix, img0 = beta_img_design_matrix
     contrasts_l = np.array(contrasts_l).astype(np.bool)
     new_img = predictedImg_from_betaImg_designMatrix(beta_img0, design_matrix, contrasts_l)
-    img_j = nilearn.image.load_img(imgs[0])
+    #########
+    img_j = nilearn.image.load_img(img0)
     # when we use our own masker (because ideally we'd use an img and a design matrix and nothing else
     masker = nilearn.input_data.NiftiMasker()
     masker.fit(new_img) # trying background masking_strategy on new_img (should be same as 'epi' on previous
