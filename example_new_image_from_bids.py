@@ -54,6 +54,7 @@ data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dat
 # TODO add doc strings to functions
 # TODO use datalad to fetch data
 # TODO use bids to get info
+# TODO How about if I want to compare just the fixed-effect contrasts
 
 def beta_img_from_model_events_confounds(model, imgs, events, confounds):
     # model.fit will create a design matrix from events and confounds
@@ -96,7 +97,6 @@ def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l
 
 from nistats import reporting
 
-### TODO How about if I want to compare just the fixed-effect contrasts
 
 import pytest
 
