@@ -41,6 +41,7 @@
 import sys
 import nilearn
 import numpy as np
+from nilearn.input_data import NiftiMasker
 
 ### IMPORTANT: change the following path to correct location
 
@@ -61,20 +62,20 @@ sys.path.insert(0, local_nistats_dir)
 # This dataset contains the necessary information to run a statistical analysis
 # using Nistats. The dataset also contains statistical results from a previous
 # FSL analysis that we can employ for comparison with the Nistats estimation.
-from nistats.datasets import (fetch_openneuro_dataset_index,
-                              fetch_openneuro_dataset, select_from_index)
-
-_, urls = fetch_openneuro_dataset_index()
-
-exclusion_patterns = ['*group*', '*phenotype*', '*mriqc*',
-                      '*parameter_plots*', '*physio_plots*',
-                      '*space-fsaverage*', '*space-T1w*',
-                      '*dwi*', '*beh*', '*task-bart*',
-                      '*task-rest*', '*task-scap*', '*task-task*']
-urls = select_from_index(
-    urls, exclusion_filters=exclusion_patterns, n_subjects=1)
-
-data_dir, _ = fetch_openneuro_dataset(urls=urls)
+# from nistats.datasets import (fetch_openneuro_dataset_index,
+#                               fetch_openneuro_dataset, select_from_index)
+#
+# _, urls = fetch_openneuro_dataset_index()
+#
+# exclusion_patterns = ['*group*', '*phenotype*', '*mriqc*',
+#                       '*parameter_plots*', '*physio_plots*',
+#                       '*space-fsaverage*', '*space-T1w*',
+#                       '*dwi*', '*beh*', '*task-bart*',
+#                       '*task-rest*', '*task-scap*', '*task-task*']
+# urls = select_from_index(
+#     urls, exclusion_filters=exclusion_patterns, n_subjects=1)
+#
+# data_dir, _ = fetch_openneuro_dataset(urls=urls)
 
 # my attempt at using different data
 # IMPORTANT: Bids compliant data needs a 'derivatives' directory that has pre-processed images in it
@@ -97,18 +98,18 @@ data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dat
 
 # TODO space label is necessary because...
 
-from nistats.first_level_model import first_level_models_from_bids
-# task_label = 'stopsignal'
-# task_label = 'stopmanual'
-task_label = 'languagelocalizer'
-# space_label = 'MNI152NLin2009cAsym'
-space_label = 'MNI152nonlin2009aAsym'
-derivatives_folder = 'derivatives'
-models, models_run_imgs, models_events, models_confounds = \
-    first_level_models_from_bids(
-        data_dir, task_label, space_label, #smoothing_fwhm=5.0,   ### TODO if I can get my own datadir then I
-        derivatives_folder=derivatives_folder,
-        noise_model='ols', signal_scaling=False)
+# from nistats.first_level_model import first_level_models_from_bids
+# # task_label = 'stopsignal'
+# # task_label = 'stopmanual'
+# task_label = 'languagelocalizer'
+# # space_label = 'MNI152NLin2009cAsym'
+# space_label = 'MNI152nonlin2009aAsym'
+# derivatives_folder = 'derivatives'
+# models, models_run_imgs, models_events, models_confounds = \
+#     first_level_models_from_bids(
+#         data_dir, task_label, space_label, #smoothing_fwhm=5.0,   ### TODO if I can get my own datadir then I
+#         derivatives_folder=derivatives_folder,
+#         noise_model='ols', signal_scaling=False)
 
 # TODO load multiple runs
 
@@ -118,8 +119,8 @@ models, models_run_imgs, models_events, models_confounds = \
 
 #############################################################################
 # Take model and model arguments of the subject and process events
-model, imgs, events, confounds = (
-    models[0], models_run_imgs[0], models_events[0], models_confounds[0])
+# model, imgs, events, confounds = (
+#     models[0], models_run_imgs[0], models_events[0], models_confounds[0])
 
 #############################################################################
 # End of data acquisition, and  plot_bids_features.py code
@@ -142,33 +143,79 @@ def beta_img_from_model_events_confounds(model, imgs, events, confounds):
     # theta_imgs_l is a list of Ni1Images that contain the effect sizes for each column in the design_matrix
     theta_imgs_l = list()
 
-    # con_params is a list indicating which contrasts we will be taking from the model
-    # initially we take all of them
-    con_params_l = range(design_matrix_a.shape[1])
 
-    for i in con_params_l:
+    for i in range(design_matrix_a.shape[1]):
         theta_imgs_l.append(
             model.compute_contrast( contrast_matrix_a[i], output_type = 'effect_size')
         )
 
     # con_img is a Ni1image that contains all of the theta values in one image.
     con_img = nilearn.image.concat_imgs(theta_imgs_l)
-    return con_img
+    return con_img, design_matrix_a
 
 # masked_con_img is a 2-dim matrix ( parameter x voxels)
-masked_con_img = model.masker_.transform(con_img)
-pred_a = np.einsum('tp,pv->tv',
-                   model.design_matrices_[0].values[:, con_params_l],
-                   masked_con_img)
+def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l = []):
 
-# problem: I need the original masker to get the image, or do I?
-new_img = model.masker_.inverse_transform(pred_a)
+    # con_params is a list indicating which contrasts we will be taking from the model
+    # initially we take all of them
+    if len(con_params_l) == 0:
+        con_params_l = np.ones(design_matrix.shape[1], dtype=np.bool)
+
+    con_mask = NiftiMasker()
+    masked_con_img = con_mask.fit_transform(beta_img)
+    # this is just: design_matrix[:, contrast_params] @ masked_con_img
+    pred_a = np.einsum('tp,pv->tv',
+                       design_matrix.values[:, con_params_l],
+                       masked_con_img[con_params_l, :])
+    new_img = con_mask.inverse_transform(pred_a)
+    return new_img
 
 from nistats import reporting
-img_j = nilearn.image.load_img(imgs)
-reporting.compare_niimgs([new_img], [img_j], model.masker_, plot_hist=False,
-                         ref_label='model image', src_label='original image')
 
 ### How about if I want to compare just the fixed-effect contrasts
 
 # TODO make function that takes 4-d scan (1 run) and design matrix or effects/confounds, contrast and returns 4-d with betas
+
+import pytest
+# @pytest.fixture
+# def contrasts_l():
+#     return np.ones(13)
+
+def get_contrasts():
+    l = list()
+    l.append( np.ones(13))
+    return l
+
+
+from nistats.first_level_model import first_level_models_from_bids
+
+def get_data():
+    data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dataset/'
+    task_label = 'languagelocalizer'
+    space_label = 'MNI152nonlin2009aAsym'
+    derivatives_folder = 'derivatives'
+    models, models_run_imgs, models_events, models_confounds = \
+        first_level_models_from_bids(
+            data_dir, task_label, space_label, #smoothing_fwhm=5.0,
+            derivatives_folder=derivatives_folder,
+            noise_model='ols', signal_scaling=False)
+    return list(zip(models, models_run_imgs, models_events, models_confounds))
+
+@pytest.fixture(params= get_data())
+def  beta_img0(tuple_arg):
+    model, imgs, events, confounds = tuple_arg
+    return beta_img_from_model_events_confounds(model, imgs,events, confounds)
+
+@pytest.mark.parametrize("arg_tuple", get_data())
+@pytest.mark.parametrize("contrasts_l", get_contrasts())
+def test_contrasts(arg_tuple, contrasts_l):
+    model, imgs,events, confounds = arg_tuple
+    beta_img0, design_matrix = beta_img_from_model_events_confounds(model, imgs,events, confounds)
+    contrasts_l = np.array(contrasts_l).astype(np.bool)
+    new_img = predictedImg_from_betaImg_designMatrix(beta_img0, design_matrix, contrasts_l)
+    img_j = nilearn.image.load_img(imgs[0])
+    # masker = nilearn.input_data.NiftiMasker()
+    # masker.fit(img_j)
+    corr = reporting.compare_niimgs([new_img], [img_j], model.masker_, plot_hist=False)
+    print(corr)
+    assert( corr[0] > 0.9)
