@@ -54,34 +54,9 @@ sys.path.insert(0, local_nistats_dir)
 ## signal_scaling is now False
 ## noise_model = 'ols' (probably not essential at this point) TODO
 
-##############################################################################
-# Fetch openneuro BIDS dataset
-# -----------------------------
-# We download one subject from the stopsignal task in the ds000030 V4 BIDS
-# dataset available in openneuro.
-# This dataset contains the necessary information to run a statistical analysis
-# using Nistats. The dataset also contains statistical results from a previous
-# FSL analysis that we can employ for comparison with the Nistats estimation.
-# from nistats.datasets import (fetch_openneuro_dataset_index,
-#                               fetch_openneuro_dataset, select_from_index)
-#
-# _, urls = fetch_openneuro_dataset_index()
-#
-# exclusion_patterns = ['*group*', '*phenotype*', '*mriqc*',
-#                       '*parameter_plots*', '*physio_plots*',
-#                       '*space-fsaverage*', '*space-T1w*',
-#                       '*dwi*', '*beh*', '*task-bart*',
-#                       '*task-rest*', '*task-scap*', '*task-task*']
-# urls = select_from_index(
-#     urls, exclusion_filters=exclusion_patterns, n_subjects=1)
-#
-# data_dir, _ = fetch_openneuro_dataset(urls=urls)
 
-# my attempt at using different data
 # IMPORTANT: Bids compliant data needs a 'derivatives' directory that has pre-processed images in it
-# try
 data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dataset/'
-# data_dir = 'Users/josephmann/datalad/openfmri/ds000007'
 
 ##############################################################################
 # Obtain automatically FirstLevelModel objects and fit arguments
@@ -96,35 +71,9 @@ data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dat
 # We also have to provide the folder with the desired derivatives, that in this
 # case were produced by the fmriprep BIDS app.
 
-# TODO space label is necessary because...
-
-# from nistats.first_level_model import first_level_models_from_bids
-# # task_label = 'stopsignal'
-# # task_label = 'stopmanual'
-# task_label = 'languagelocalizer'
-# # space_label = 'MNI152NLin2009cAsym'
-# space_label = 'MNI152nonlin2009aAsym'
-# derivatives_folder = 'derivatives'
-# models, models_run_imgs, models_events, models_confounds = \
-#     first_level_models_from_bids(
-#         data_dir, task_label, space_label, #smoothing_fwhm=5.0,   ### TODO if I can get my own datadir then I
-#         derivatives_folder=derivatives_folder,
-#         noise_model='ols', signal_scaling=False)
-
-# TODO load multiple runs
-
-# use datalad to fetch data
-# use bids to get info
-# seems simple...
-
-#############################################################################
-# Take model and model arguments of the subject and process events
-# model, imgs, events, confounds = (
-#     models[0], models_run_imgs[0], models_events[0], models_confounds[0])
-
-#############################################################################
-# End of data acquisition, and  plot_bids_features.py code
-#############################################################################
+# TODO add doc strings to functions
+# TODO use datalad to fetch data
+# TODO use bids to get info
 
 def beta_img_from_model_events_confounds(model, imgs, events, confounds):
     # model.fit will create a design matrix from events and confounds
@@ -167,14 +116,9 @@ def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l
 
 from nistats import reporting
 
-### How about if I want to compare just the fixed-effect contrasts
-
-# TODO make function that takes 4-d scan (1 run) and design matrix or effects/confounds, contrast and returns 4-d with betas
+### TODO How about if I want to compare just the fixed-effect contrasts
 
 import pytest
-# @pytest.fixture
-# def contrasts_l():
-#     return np.ones(13)
 
 def get_contrasts():
     l = list()
