@@ -1,8 +1,3 @@
-# get nibs data
-# get beta img and design matrix
-
-# find ways to make variants
-## different smoothing on original epi
 ## smoothing on betas
 ## average betas from several scans
 ## create distribution from several scans and generate betas from random selection
@@ -18,21 +13,6 @@
 ## with spatial noise
 ## with idiosyncratic noise
 ##
-## play, Where's Waldo (...?)
-##
-
-# what is the simplest thing I can submit??
-
-# acquisition of data
-
-# full model fit
-# show contrasts
-
-# make predicted from betas
-# full model fit on predicted
-# show contrasts
-
-# compare contrasts
 
 #################
 ## IMPORTANT: essential mod to nistats has yet to be integrated.
@@ -126,7 +106,6 @@ def get_contrasts():
     l.append( [1,1,1,0,0,0,0,0,0,0,0,0,1])
     return l
 
-
 from nistats.first_level_model import first_level_models_from_bids
 
 def get_data():
@@ -151,17 +130,12 @@ def  beta_img_design_matrix(request):
 # @pytest.mark.parametrize("arg_tuple", get_data())
 @pytest.mark.parametrize("contrasts_l", get_contrasts())
 def test_contrasts(beta_img_design_matrix, contrasts_l):
-    # model, imgs,events, confounds = arg_tuple
-    # beta_img0, design_matrix = beta_img_from_model_events_confounds(model, imgs, events, confounds)
     beta_img0, design_matrix, img0 = beta_img_design_matrix
     contrasts_l = np.array(contrasts_l).astype(np.bool)
     new_img = predictedImg_from_betaImg_designMatrix(beta_img0, design_matrix, contrasts_l)
-    #########
     img_j = nilearn.image.load_img(img0)
-    # when we use our own masker (because ideally we'd use an img and a design matrix and nothing else
     masker = nilearn.input_data.NiftiMasker()
     masker.fit(new_img) # trying background masking_strategy on new_img (should be same as 'epi' on previous
-    # corr = reporting.compare_niimgs([new_img], [img_j], model.masker_, plot_hist=False)
     corr = reporting.compare_niimgs([new_img], [img_j], masker, plot_hist=False)
     print(corr)
     assert( corr[0] > 0.9)
