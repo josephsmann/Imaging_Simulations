@@ -149,7 +149,6 @@ def beta_img_from_model_events_confounds(model, imgs, events, confounds):
     con_img = nilearn.image.concat_imgs(theta_imgs_l)
     return con_img, design_matrix_a
 
-# masked_con_img is a 2-dim matrix ( parameter x voxels)
 def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l = []):
 
     # con_params is a list indicating which contrasts we will be taking from the model
@@ -180,12 +179,14 @@ import pytest
 def get_contrasts():
     l = list()
     l.append( np.ones(13))
+    l.append( [1,1,1,0,0,0,0,0,0,0,0,0,1])
     return l
 
 
 from nistats.first_level_model import first_level_models_from_bids
 
 def get_data():
+    n_runs = 3
     data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dataset/'
     task_label = 'languagelocalizer'
     space_label = 'MNI152nonlin2009aAsym'
@@ -195,23 +196,25 @@ def get_data():
             data_dir, task_label, space_label, #smoothing_fwhm=5.0,
             derivatives_folder=derivatives_folder,
             noise_model='ols', signal_scaling=False)
-    return list(zip(models, models_run_imgs, models_events, models_confounds))
+    return list(zip(models, models_run_imgs, models_events, models_confounds))[:n_runs]
 
-@pytest.fixture(params= get_data())
-def  beta_img0(tuple_arg):
-    model, imgs, events, confounds = tuple_arg
-    return beta_img_from_model_events_confounds(model, imgs,events, confounds)
+# @pytest.fixture(params= get_data())
+# def  beta_img0(tuple_arg):
+#     model, imgs, events, confounds = tuple_arg
+#     return beta_img_from_model_events_confounds(model, imgs,events, confounds)
 
 @pytest.mark.parametrize("arg_tuple", get_data())
 @pytest.mark.parametrize("contrasts_l", get_contrasts())
 def test_contrasts(arg_tuple, contrasts_l):
     model, imgs,events, confounds = arg_tuple
-    beta_img0, design_matrix = beta_img_from_model_events_confounds(model, imgs,events, confounds)
+    beta_img0, design_matrix = beta_img_from_model_events_confounds(model, imgs, events, confounds)
     contrasts_l = np.array(contrasts_l).astype(np.bool)
     new_img = predictedImg_from_betaImg_designMatrix(beta_img0, design_matrix, contrasts_l)
     img_j = nilearn.image.load_img(imgs[0])
-    # masker = nilearn.input_data.NiftiMasker()
-    # masker.fit(img_j)
-    corr = reporting.compare_niimgs([new_img], [img_j], model.masker_, plot_hist=False)
+    # when we use our own masker (because ideally we'd use an img and a design matrix and nothing else
+    masker = nilearn.input_data.NiftiMasker()
+    masker.fit(new_img) # trying background masking_strategy on new_img (should be same as 'epi' on previous
+    # corr = reporting.compare_niimgs([new_img], [img_j], model.masker_, plot_hist=False)
+    corr = reporting.compare_niimgs([new_img], [img_j], masker, plot_hist=False)
     print(corr)
     assert( corr[0] > 0.9)
