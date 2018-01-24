@@ -49,6 +49,7 @@ data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dat
 # TODO use datalad to fetch data
 # TODO use bids to get info
 # TODO How about if I want to compare just the fixed-effect contrasts (between what?)
+# TODO region to voxel function (see atlas stuff in  nisim.py)
 
 def beta_img_from_model_events_confounds(model, imgs, events, confounds):
     """
@@ -92,7 +93,8 @@ def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l
     :param a 4d Nifti1Image with design matrix coefficients:
     :param design_matrix:
     :param con_params_l: a (currently) binary list to select which parameters to use
-            in our projection.
+            in our projection. Could be a matrix? so that the weights were voxel dependent.
+
     :return: the projected image.
     """
 
@@ -105,10 +107,10 @@ def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l
     con_mask = NiftiMasker()
     masked_con_img = con_mask.fit_transform(beta_img)
 
-    # this is just: design_matrix[:, contrast_params] @ masked_con_img
+    select_masked_con_img = np.einsum('p,pt->pt', con_params_l, masked_con_img)
     pred_a = np.einsum('tp,pv->tv',
-                       design_matrix.values[:, con_params_l],
-                       masked_con_img[con_params_l, :])
+                       design_matrix.values,
+                       select_masked_con_img)
     new_img = con_mask.inverse_transform(pred_a)
     return new_img
 
