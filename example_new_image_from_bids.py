@@ -28,12 +28,6 @@ from nilearn.input_data import NiftiMasker
 local_nistats_dir = "/Users/josephmann/Documents/GitHub/nistats_j"
 sys.path.insert(0, local_nistats_dir)
 
-## Following code is almost perfect copy from nistats example plot_bids_features.py
-## with changes to parameters in first_level_models_from_bids:
-##  smoothig_fwhm has been removed
-## signal_scaling is now False
-## noise_model = 'ols' (probably not essential at this point) TODO
-
 
 # IMPORTANT: Bids compliant data needs a 'derivatives' directory that has pre-processed images in it
 data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dataset/'
@@ -114,12 +108,16 @@ def get_data():
     task_label = 'languagelocalizer'
     space_label = 'MNI152nonlin2009aAsym'
     derivatives_folder = 'derivatives'
-    models, models_run_imgs, models_events, models_confounds = \
-        first_level_models_from_bids(
-            data_dir, task_label, space_label, #smoothing_fwhm=5.0,
-            derivatives_folder=derivatives_folder,
-            noise_model='ols', signal_scaling=False)
-    return list(zip(models, models_run_imgs, models_events, models_confounds))[:n_runs]
+    res_l = list()
+    for noise_model in ['ols','ar1']:
+        models, models_run_imgs, models_events, models_confounds = \
+            first_level_models_from_bids(
+                data_dir, task_label, space_label, #smoothing_fwhm=5.0,
+                derivatives_folder=derivatives_folder,
+                noise_model=noise_model, signal_scaling=False)
+        res_l.extend(list(zip(models, models_run_imgs, models_events, models_confounds))[:n_runs])
+        print(len(res_l[-1]))
+    return res_l
 
 # i don't want to have to regenerate these images for every test so trying this
 @pytest.fixture(params= get_data())
