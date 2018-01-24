@@ -48,9 +48,22 @@ data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dat
 # TODO add doc strings to functions
 # TODO use datalad to fetch data
 # TODO use bids to get info
-# TODO How about if I want to compare just the fixed-effect contrasts
+# TODO How about if I want to compare just the fixed-effect contrasts (between what?)
 
 def beta_img_from_model_events_confounds(model, imgs, events, confounds):
+    """
+    :param model: nistats.FirstLevelModel
+    :param imgs: a list of 4D Nifti1Images
+    :param events: a dataframe containing columns 'onsets' and events
+    :param confounds: a dataframe contain confounds
+    :return: a tuple containing
+            - a 4d NiftiImage have the same dimensions as the input images
+            except for the 4th dim which has the effect sizes of the columns in the design matrix
+            - the design matrix
+
+    This function finds for each voxel in each of the imgs the effect size for each column of the design matrix
+    created from the events and confounds.
+    """
     # model.fit will create a design matrix from events and confounds
     # and then fit the GLM to the imgs,
     model.fit(imgs, events, confounds)
@@ -74,6 +87,15 @@ def beta_img_from_model_events_confounds(model, imgs, events, confounds):
     return con_img, design_matrix_a
 
 def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l = []):
+    """
+
+    :param a 4d Nifti1Image with design matrix coefficients:
+    :param design_matrix:
+    :param con_params_l: a (currently) binary list to select which parameters to use
+            in our projection.
+    :return: the projected image.
+    """
+
 
     # con_params is a list indicating which contrasts we will be taking from the model
     # initially we take all of them
@@ -82,6 +104,7 @@ def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l
 
     con_mask = NiftiMasker()
     masked_con_img = con_mask.fit_transform(beta_img)
+
     # this is just: design_matrix[:, contrast_params] @ masked_con_img
     pred_a = np.einsum('tp,pv->tv',
                        design_matrix.values[:, con_params_l],
@@ -102,6 +125,7 @@ def get_contrasts():
 
 from nistats.first_level_model import first_level_models_from_bids
 
+# thought that I could standardize here, and then use model.masker_ to
 def get_data():
     n_runs = 3
     data_dir = '/Users/josephmann/nilearn_data/bids_langloc_example/bids_langloc_dataset/'
@@ -110,25 +134,34 @@ def get_data():
     derivatives_folder = 'derivatives'
     res_l = list()
     for noise_model in ['ols','ar1']:
-        models, models_run_imgs, models_events, models_confounds = \
-            first_level_models_from_bids(
-                data_dir, task_label, space_label, #smoothing_fwhm=5.0,
-                derivatives_folder=derivatives_folder,
-                noise_model=noise_model, signal_scaling=False)
-        res_l.extend(list(zip(models, models_run_imgs, models_events, models_confounds))[:n_runs])
-        print(len(res_l[-1]))
+        for standardize_b in [ False]: # never standardize
+            models, models_run_imgs, models_events, models_confounds = \
+                first_level_models_from_bids(
+                    data_dir, task_label, space_label, #smoothing_fwhm=5.0,
+                    derivatives_folder=derivatives_folder,
+                    noise_model=noise_model, signal_scaling=False, standardize=standardize_b)
+            res_l.extend(list(zip(models, models_run_imgs, models_events, models_confounds))[:n_runs])
     return res_l
 
-# i don't want to have to regenerate these images for every test so trying this
 @pytest.fixture(params= get_data())
 def  beta_img_design_matrix(request):
     model, imgs, events, confounds = request.param
-    return beta_img_from_model_events_confounds(model, imgs, events, confounds) + (imgs[0],)
+    return beta_img_from_model_events_confounds(model, imgs, events, confounds) + (imgs[0], model)
 
-# @pytest.mark.parametrize("arg_tuple", get_data())
 @pytest.mark.parametrize("contrasts_l", get_contrasts())
 def test_contrasts(beta_img_design_matrix, contrasts_l):
-    beta_img0, design_matrix, img0 = beta_img_design_matrix
+    """
+    :param beta_img_design_matrix: a tuple having a
+        (4d Nifti1Image with design matrix parameter amplitudes in each voxel,
+        Dataframe having the design matrix
+        4D NiftiImage which is the image that is modeled with our beta values and design matrix
+        a nistats.FirstLevelModel - currently not used...
+    :param contrasts_l: when we project our new image we can select with parameters we want to use using this list
+        TODO should be fixed length relative to design matrix, also these could just be weights... or even better
+        a matrix that is (param x (region or voxel)
+    :return: nothing, we assert that correlation between the two images is greater than 0.9
+    """
+    beta_img0, design_matrix, img0, model = beta_img_design_matrix
     contrasts_l = np.array(contrasts_l).astype(np.bool)
     new_img = predictedImg_from_betaImg_designMatrix(beta_img0, design_matrix, contrasts_l)
     img_j = nilearn.image.load_img(img0)
@@ -137,3 +170,5 @@ def test_contrasts(beta_img_design_matrix, contrasts_l):
     corr = reporting.compare_niimgs([new_img], [img_j], masker, plot_hist=False)
     print(corr)
     assert( corr[0] > 0.9)
+
+
