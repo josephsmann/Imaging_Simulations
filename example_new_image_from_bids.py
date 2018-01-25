@@ -87,6 +87,57 @@ def beta_img_from_model_events_confounds(model, imgs, events, confounds):
     con_img = nilearn.image.concat_imgs(theta_imgs_l)
     return con_img, design_matrix_a
 
+from nilearn import image
+from nilearn import datasets
+
+def standardize_atlas(atlas_ni):
+    """
+    return an atlas where each feature is normalized to values between
+    0 and 1.
+
+    """
+    atlas_data = atlas_ni.get_data()
+    max_features = atlas_ni.get_data().reshape(-1, atlas_ni.shape[-1] ).max(axis=0)
+    std_data = (np.abs(atlas_data) / max_features).reshape(atlas_ni.shape)
+    return image.new_img_like(atlas_ni,std_data )
+
+def test_standardize_atlas():
+    allen = datasets.fetch_atlas_allen_2011()
+    atlas_ni = image.load_img(allen.rsn28)
+    std_atlas_ni = standardize_atlas(atlas_ni)
+    assert((0 <= std_atlas_ni.get_data()).all() & (std_atlas_ni.get_data() <= 1.0).all())
+    assert(std_atlas_ni.shape == atlas_ni.shape)
+
+
+def contrast_weights_from_regions(atlas_ni=None, region_weights=[]):
+    if atlas_ni == None:
+        allen = datasets.fetch_atlas_allen_2011()
+        atlas_ni = image.load_img(allen.rsn28)
+
+    std_atlas_ni = standardize_atlas(atlas_ni)
+    n_components = atlas_ni.shape[-1]
+    if len(region_weights) != n_components:
+        region_weights = np.zeros(n_components)
+        region_weights[0] = 1
+    atlas_a = std_atlas_ni.get_data()
+    atlas_a *= region_weights
+    return image.new_img_like(std_atlas_ni, atlas_a)
+
+def test_contrast_weights_from_regions():
+    """
+    sanity check for contrast_weights_from_regions
+    :return: nothing, just a test
+    """
+    img = contrast_weights_from_regions()
+    # ensure all regions besides the first one are set to zero
+    assert( img.get_data()[:,:,:,1:].sum() == 0.0)
+
+    # verify the allen atlas is similar (modulo summation) to our weighted version
+    allen = datasets.fetch_atlas_allen_2011()
+    atlas_ni = image.load_img(allen.rsn28)
+    std_atlas_ni = standardize_atlas(atlas_ni)
+    assert( img.get_data().sum() == std_atlas_ni .get_data()[:,:,:,0].sum())
+
 def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l = []):
     """
 
@@ -107,7 +158,13 @@ def predictedImg_from_betaImg_designMatrix(beta_img, design_matrix, con_params_l
     con_mask = NiftiMasker()
     masked_con_img = con_mask.fit_transform(beta_img)
 
-    select_masked_con_img = np.einsum('p,pt->pt', con_params_l, masked_con_img)
+    # ok, could put in something to change p to a (p,v)-matrix  with
+    # 'p,v->pv' and then apply
+    # 'pv,pv -> pv'
+    # but first we want,
+    # resample to get atlas in right size !
+    # image.resample_to_img
+    select_masked_con_img = np.einsum('p,pv->pv', con_params_l, masked_con_img)
     pred_a = np.einsum('tp,pv->tv',
                        design_matrix.values,
                        select_masked_con_img)
